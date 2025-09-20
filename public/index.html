@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YT Downloader</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #111827;
+      --fg: #e5e7eb;
+      --accent: #22c55e;
+      --muted: #94a3b8;
+      --border: #1f2937
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background: linear-gradient(180deg, #0f172a, #111827 30%, #0b1220);
+      color: var(--fg);
+      min-height: 100vh
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 32px 20px
+    }
+
+    header {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 20px
+    }
+
+    .logo {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #22c55e, #16a34a)
+    }
+
+    .logo span {
+      font-weight: 700
+    }
+
+    h1 {
+      font-size: 24px;
+      margin: 0
+    }
+
+    .card {
+      background: rgba(17, 24, 39, .6);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .25)
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap
+    }
+
+    input[type="text"] {
+      flex: 1;
+      min-width: 260px;
+      background: #0b1020;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      color: var(--fg);
+      outline: none
+    }
+
+    input::placeholder {
+      color: var(--muted)
+    }
+
+    button {
+      background: var(--accent);
+      color: #04210f;
+      border: none;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-weight: 700;
+      cursor: pointer
+    }
+
+    button.secondary {
+      background: #0b1020;
+      color: var(--fg);
+      border: 1px solid var(--border)
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      margin: 14px 0
+    }
+
+    .list {
+      display: grid;
+      gap: 12px
+    }
+
+    .item {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      background: #0b1020;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px
+    }
+
+    .thumb {
+      width: 150px;
+      height: 84px;
+      background: #0a0a0a;
+      border-radius: 8px;
+      overflow: hidden
+    }
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover
+    }
+
+    .title {
+      font-weight: 600;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px
+    }
+
+    .grow {
+      flex: 1
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px
+    }
+
+    .loading {
+      margin-top: 10px;
+      color: var(--muted)
+    }
+
+    footer {
+      margin-top: 32px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <div class="logo"><span>⤓</span></div>
+      <h1>YT Downloader</h1>
+    </header>
+
+    <div class="card">
+      <div class="row">
+        <input id="url" type="text" placeholder="Cole a URL de um vídeo ou playlist do YouTube" />
+        <button id="analisar">Analisar</button>
+      </div>
+      <div id="status" class="loading"></div>
+    </div>
+
+    <div id="results" class="card" style="margin-top:16px; display:none">
+      <div class="toolbar">
+        <div>
+          <div style="font-weight:700" id="kind"></div>
+          <div class="muted" id="count"></div>
+        </div>
+        <div>
+          <button id="baixarTodosVideo" class="secondary">Baixar todos (Vídeo)</button>
+          <button id="baixarTodosAudio" class="secondary">Baixar todos (Áudio)</button>
+          <button id="cancelarLote" class="secondary" style="display:none">Cancelar</button>
+        </div>
+      </div>
+      <div class="list" id="lista"></div>
+    </div>
+
+    <footer>
+      Feito para uso pessoal. Downloads sujeitos aos Termos do YouTube.
+    </footer>
+  </div>
+
+  <script>
+    const $ = sel => document.querySelector(sel);
+    let currentItems = [];
+    let currentAbortController = null;
+    let currentDlFrame = null;
+    let currentDlForm = null;
+    let currentJobId = null;
+
+    async function analisar() {
+      const url = $('#url').value.trim();
+      $('#status').textContent = '';
+      if (!url) { $('#status').textContent = 'Informe uma URL.'; return; }
+      $('#status').textContent = 'Analisando URL…';
+      try {
+        const resp = await fetch('/api/parse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Erro ao analisar');
+        currentItems = data.items || [];
+        $('#results').style.display = currentItems.length ? 'block' : 'none';
+        $('#kind').textContent = data.kind === 'playlist' ? 'Playlist' : 'Vídeo único';
+        $('#count').textContent = `${currentItems.length} item(ns)`;
+        const lista = $('#lista');
+        lista.innerHTML = '';
+        for (const it of currentItems) {
+          const el = document.createElement('div');
+          el.className = 'item';
+          el.innerHTML = `
+        <div class="thumb">${it.thumbnail ? `<img src="${it.thumbnail}" alt="">` : ''}</div>
+        <div class="grow">
+          <div class="title">${it.title}</div>
+          <div class="muted">${it.url}</div>
+        </div>
+        <div class="actions">
+          <button data-id="${it.id}" data-mode="video" class="btnOne">Vídeo</button>
+          <button data-id="${it.id}" data-mode="audio" class="btnOne secondary">Áudio</button>
+        </div>
+      `;
+          lista.appendChild(el);
+        }
+        bindItemButtons();
+      } catch (e) {
+        $('#status').textContent = e.message;
+      } finally {
+        if (!currentItems.length) $('#results').style.display = 'none';
+      }
+    }
+
+    function bindItemButtons() {
+      document.querySelectorAll('.btnOne').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-id');
+          const mode = btn.getAttribute('data-mode');
+          const item = currentItems.find(i => i.id === id);
+          if (!item) return;
+          btn.disabled = true; btn.textContent = 'Preparando…';
+          try {
+            const url = '/api/download-one';
+            const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: item.url, mode, title: item.title }) });
+            if (!resp.ok) {
+              const data = await resp.json().catch(() => ({}));
+              throw new Error(data.error || 'Falha no download');
+            }
+            const blob = await resp.blob();
+            // tentar extrair filename do header
+            const cd = resp.headers.get('content-disposition') || '';
+            let filename = '';
+            const m = /filename="?([^";]+)"?/i.exec(cd);
+            if (m) filename = m[1];
+            const a = document.createElement('a');
+            const dl = window.URL.createObjectURL(blob);
+            a.href = dl;
+            a.download = filename || '';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(dl);
+          } catch (e) {
+            alert(e.message);
+          } finally {
+            btn.disabled = false; btn.textContent = mode === 'video' ? 'Vídeo' : 'Áudio';
+          }
+        });
+      });
+    }
+
+    async function baixarTodos(mode) {
+      if (!currentItems.length) return;
+      // Se já existe um download em andamento, cancela primeiro
+      if (currentDlFrame) cancelarDownloadLote();
+
+      const btn = mode === 'video' ? $('#baixarTodosVideo') : $('#baixarTodosAudio');
+      btn.disabled = true; btn.textContent = 'Preparando…';
+      $('#cancelarLote').style.display = 'inline-block';
+
+      // Cria iframe oculto que receberá a resposta (ZIP streaming)
+      const frameName = 'dlFrame-' + Math.random().toString(36).slice(2);
+      currentJobId = 'job-' + Math.random().toString(36).slice(2);
+      const iframe = document.createElement('iframe');
+      iframe.name = frameName;
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+      currentDlFrame = iframe;
+
+      // Cria form oculto para enviar POST application/x-www-form-urlencoded com payload JSON
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = '/api/download-all';
+      form.target = frameName;
+      form.style.display = 'none';
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'payload';
+      input.value = JSON.stringify({ items: currentItems, mode, jobId: currentJobId });
+      form.appendChild(input);
+      document.body.appendChild(form);
+      currentDlForm = form;
+
+      const cleanup = () => {
+        btn.disabled = false; btn.textContent = mode === 'video' ? 'Baixar todos (Vídeo)' : 'Baixar todos (Áudio)';
+        $('#cancelarLote').style.display = 'none';
+        currentDlForm && currentDlForm.remove();
+        currentDlForm = null;
+        currentDlFrame && currentDlFrame.remove();
+        currentDlFrame = null;
+        currentJobId = null;
+      };
+
+      form.submit();
+
+      let stopped = false;
+      async function poll() {
+        if (!currentJobId) return;
+        try {
+          const r = await fetch(`/api/job-status?jobId=${encodeURIComponent(currentJobId)}`);
+          const d = await r.json();
+          if (d.status === 'done' || d.status === 'cancelled' || d.status === 'error') {
+            if (!stopped) { stopped = true; cleanup(); }
+            return;
+          }
+        } catch (e) {
+          // ignore e tenta novamente
+        }
+        if (!stopped) setTimeout(poll, 1500);
+      }
+      poll();
+    }
+
+    function cancelarDownloadLote() {
+      if (currentDlFrame) { currentDlFrame.src = 'about:blank'; currentDlFrame.remove(); currentDlFrame = null; }
+      if (currentDlForm) { currentDlForm.remove(); currentDlForm = null; }
+      $('#cancelarLote').style.display = 'none';
+      // botões voltam ao normal
+      $('#baixarTodosVideo').disabled = false; $('#baixarTodosVideo').textContent = 'Baixar todos (Vídeo)';
+      $('#baixarTodosAudio').disabled = false; $('#baixarTodosAudio').textContent = 'Baixar todos (Áudio)';
+      currentJobId = null;
+    }
+
+    $('#analisar').addEventListener('click', analisar);
+    $('#baixarTodosVideo').addEventListener('click', () => baixarTodos('video'));
+    $('#baixarTodosAudio').addEventListener('click', () => baixarTodos('audio'));
+    $('#cancelarLote').addEventListener('click', () => cancelarDownloadLote());
+
+    window.addEventListener('beforeunload', () => cancelarDownloadLote());
+
+  </script>
+</body>
+
+</html>
