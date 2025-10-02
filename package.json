@@ -1,11 +1,12 @@
 {
   "name": "yt-downloader-web",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "prod": "pm2-runtime start src/server.js --name yt-downloader --max-memory-restart 500M"
   },
   "dependencies": {
     "archiver": "^7.0.1",

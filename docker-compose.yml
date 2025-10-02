@@ -8,7 +8,8 @@ services:
     env_file:
       - .env
     environment:
-      - PORT=3000
+      - PORT=${PORT}
+      - YT_API_KEY=${YT_API_KEY}
     volumes:
       - ./tmp:/tmp
     # healthcheck simples

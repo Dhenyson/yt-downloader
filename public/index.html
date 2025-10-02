@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 
 <head>
   <meta charset="utf-8" />
@@ -185,8 +185,8 @@
 
     <div class="card">
       <div class="row">
-        <input id="url" type="text" placeholder="Cole a URL de um vídeo ou playlist do YouTube" />
-        <button id="analisar">Analisar</button>
+  <input id="url" type="text" placeholder="Paste a YouTube video or playlist URL" />
+  <button id="analisar">Analyze</button>
       </div>
       <div id="status" class="loading"></div>
     </div>
@@ -198,16 +198,16 @@
           <div class="muted" id="count"></div>
         </div>
         <div>
-          <button id="baixarTodosVideo" class="secondary">Baixar todos (Vídeo)</button>
-          <button id="baixarTodosAudio" class="secondary">Baixar todos (Áudio)</button>
-          <button id="cancelarLote" class="secondary" style="display:none">Cancelar</button>
+          <button id="baixarTodosVideo" class="secondary">Download all (Video)</button>
+          <button id="baixarTodosAudio" class="secondary">Download all (Audio)</button>
+          <button id="cancelarLote" class="secondary" style="display:none">Cancel</button>
         </div>
       </div>
       <div class="list" id="lista"></div>
     </div>
 
     <footer>
-      Feito para uso pessoal. Downloads sujeitos aos Termos do YouTube.
+  Made for personal use. Downloads subject to YouTube Terms.
     </footer>
   </div>
 
@@ -222,16 +222,16 @@
     async function analisar() {
       const url = $('#url').value.trim();
       $('#status').textContent = '';
-      if (!url) { $('#status').textContent = 'Informe uma URL.'; return; }
-      $('#status').textContent = 'Analisando URL…';
+  if (!url) { $('#status').textContent = 'Please enter a URL.'; return; }
+  $('#status').textContent = 'Analyzing URL…';
       try {
         const resp = await fetch('/api/parse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
         const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || 'Erro ao analisar');
+  if (!resp.ok) throw new Error(data.error || 'Error analyzing');
         currentItems = data.items || [];
         $('#results').style.display = currentItems.length ? 'block' : 'none';
-        $('#kind').textContent = data.kind === 'playlist' ? 'Playlist' : 'Vídeo único';
-        $('#count').textContent = `${currentItems.length} item(ns)`;
+  $('#kind').textContent = data.kind === 'playlist' ? 'Playlist' : 'Single video';
+  $('#count').textContent = `${currentItems.length} item(s)`;
         const lista = $('#lista');
         lista.innerHTML = '';
         for (const it of currentItems) {
@@ -244,8 +244,8 @@
           <div class="muted">${it.url}</div>
         </div>
         <div class="actions">
-          <button data-id="${it.id}" data-mode="video" class="btnOne">Vídeo</button>
-          <button data-id="${it.id}" data-mode="audio" class="btnOne secondary">Áudio</button>
+          <button data-id="${it.id}" data-mode="video" class="btnOne">Video</button>
+          <button data-id="${it.id}" data-mode="audio" class="btnOne secondary">Audio</button>
         </div>
       `;
           lista.appendChild(el);
@@ -271,7 +271,7 @@
             const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: item.url, mode, title: item.title }) });
             if (!resp.ok) {
               const data = await resp.json().catch(() => ({}));
-              throw new Error(data.error || 'Falha no download');
+              throw new Error(data.error || 'Download failed');
             }
             const blob = await resp.blob();
             // tentar extrair filename do header
@@ -290,7 +290,7 @@
           } catch (e) {
             alert(e.message);
           } finally {
-            btn.disabled = false; btn.textContent = mode === 'video' ? 'Vídeo' : 'Áudio';
+            btn.disabled = false; btn.textContent = mode === 'video' ? 'Video' : 'Audio';
           }
         });
       });
@@ -302,10 +302,9 @@
       if (currentDlFrame) cancelarDownloadLote();
 
       const btn = mode === 'video' ? $('#baixarTodosVideo') : $('#baixarTodosAudio');
-      btn.disabled = true; btn.textContent = 'Preparando…';
+  btn.disabled = true; btn.textContent = 'Preparing…';
       $('#cancelarLote').style.display = 'inline-block';
 
-      // Cria iframe oculto que receberá a resposta (ZIP streaming)
       const frameName = 'dlFrame-' + Math.random().toString(36).slice(2);
       currentJobId = 'job-' + Math.random().toString(36).slice(2);
       const iframe = document.createElement('iframe');
@@ -314,7 +313,6 @@
       document.body.appendChild(iframe);
       currentDlFrame = iframe;
 
-      // Cria form oculto para enviar POST application/x-www-form-urlencoded com payload JSON
       const form = document.createElement('form');
       form.method = 'POST';
       form.action = '/api/download-all';
@@ -329,7 +327,7 @@
       currentDlForm = form;
 
       const cleanup = () => {
-        btn.disabled = false; btn.textContent = mode === 'video' ? 'Baixar todos (Vídeo)' : 'Baixar todos (Áudio)';
+  btn.disabled = false; btn.textContent = mode === 'video' ? 'Download all (Video)' : 'Download all (Audio)';
         $('#cancelarLote').style.display = 'none';
         currentDlForm && currentDlForm.remove();
         currentDlForm = null;
@@ -351,7 +349,6 @@
             return;
           }
         } catch (e) {
-          // ignore e tenta novamente
         }
         if (!stopped) setTimeout(poll, 1500);
       }
@@ -361,10 +358,9 @@
     function cancelarDownloadLote() {
       if (currentDlFrame) { currentDlFrame.src = 'about:blank'; currentDlFrame.remove(); currentDlFrame = null; }
       if (currentDlForm) { currentDlForm.remove(); currentDlForm = null; }
-      $('#cancelarLote').style.display = 'none';
-      // botões voltam ao normal
-      $('#baixarTodosVideo').disabled = false; $('#baixarTodosVideo').textContent = 'Baixar todos (Vídeo)';
-      $('#baixarTodosAudio').disabled = false; $('#baixarTodosAudio').textContent = 'Baixar todos (Áudio)';
+  $('#cancelarLote').style.display = 'none';
+  $('#baixarTodosVideo').disabled = false; $('#baixarTodosVideo').textContent = 'Download all (Video)';
+  $('#baixarTodosAudio').disabled = false; $('#baixarTodosAudio').textContent = 'Download all (Audio)';
       currentJobId = null;
     }
 
