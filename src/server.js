@@ -30,6 +30,12 @@ import {
   requestLogger
 } from './middleware.js';
 
+import {
+  cleanupDirectory,
+  setupStreamCleanup,
+  sendValidationError
+} from './utils.js';
+
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -187,11 +193,11 @@ app.post('/api/parse', parseApiLimiter, asyncHandler(async (req, res) => {
 
   // Validação de input
   if (!url || typeof url !== 'string' || url.trim().length === 0) {
-    return res.status(400).json({ error: 'URL ausente ou inválida' });
+    return sendValidationError(res, 'URL ausente ou inválida');
   }
 
   if (url.length > 2000) {
-    return res.status(400).json({ error: 'URL muito longa' });
+    return sendValidationError(res, 'URL muito longa');
   }
 
   const result = await fetchItemsFromYouTube(url.trim());
@@ -321,23 +327,23 @@ app.post('/api/download-one', downloadLimiter, asyncHandler(async (req, res) => 
 
   // Validação de URL
   if (!url || typeof url !== 'string') {
-    return res.status(400).json({ error: 'URL ausente ou inválida' });
+    return sendValidationError(res, 'URL ausente ou inválida');
   }
 
   const urlValidation = validateYouTubeUrl(url);
   if (!urlValidation.valid) {
-    return res.status(400).json({ error: urlValidation.error || 'URL inválida' });
+    return sendValidationError(res, urlValidation.error || 'URL inválida');
   }
 
   // Validação de modo
   const modeValidation = validateDownloadMode(mode);
   if (!modeValidation.valid) {
-    return res.status(400).json({ error: modeValidation.error || 'Modo inválido' });
+    return sendValidationError(res, modeValidation.error || 'Modo inválido');
   }
 
   // Validação de título (opcional)
   if (title && typeof title !== 'string') {
-    return res.status(400).json({ error: 'Título deve ser uma string' });
+    return sendValidationError(res, 'Título deve ser uma string');
   }
 
   const sessionDir = join(tmpdir(), `yt-${nanoid(6)}`);
@@ -361,32 +367,11 @@ app.post('/api/download-one', downloadLimiter, asyncHandler(async (req, res) => 
     setDownloadFilenameHeaders(res, outName);
 
     const readStream = createReadStream(filePath);
-
-    readStream.on('error', (err) => {
-      console.error('Erro ao ler arquivo:', err);
-      try {
-        rmSync(sessionDir, { recursive: true, force: true });
-      } catch (cleanupErr) {
-        console.error('Erro ao limpar diretório:', cleanupErr);
-      }
-    });
-
-    readStream.on('close', () => {
-      try {
-        rmSync(sessionDir, { recursive: true, force: true });
-      } catch (err) {
-        console.error('Erro ao limpar diretório após envio:', err);
-      }
-    });
-
+    setupStreamCleanup(readStream, sessionDir);
     readStream.pipe(res);
 
   } catch (err) {
-    try {
-      rmSync(sessionDir, { recursive: true, force: true });
-    } catch (cleanupErr) {
-      console.error('Erro ao limpar diretório:', cleanupErr);
-    }
+    cleanupDirectory(sessionDir, 'diretório');
     throw err; // asyncHandler vai pegar
   }
 }));
@@ -407,7 +392,7 @@ app.post('/api/download-all', batchDownloadLimiter, asyncHandler(async (req, res
       mode = p.mode;
       jobId = p.jobId;
     } catch (e) {
-      return res.status(400).json({ error: 'Payload JSON inválido' });
+      return sendValidationError(res, 'Payload JSON inválido');
     }
   } else {
     ({ items, mode, jobId } = req.body || {});
@@ -416,13 +401,13 @@ app.post('/api/download-all', batchDownloadLimiter, asyncHandler(async (req, res
   // Validação de items
   const itemsValidation = validateBatchItems(items);
   if (!itemsValidation.valid) {
-    return res.status(400).json({ error: itemsValidation.error });
+    return sendValidationError(res, itemsValidation.error);
   }
 
   // Validação de modo
   const modeValidation = validateDownloadMode(mode);
   if (!modeValidation.valid) {
-    return res.status(400).json({ error: modeValidation.error });
+    return sendValidationError(res, modeValidation.error);
   }
 
   const sessionDir = join(tmpdir(), `yt-${nanoid(6)}`);
@@ -459,22 +444,14 @@ app.post('/api/download-all', batchDownloadLimiter, asyncHandler(async (req, res
     } catch (err) {
       console.error('Erro ao abortar archive:', err);
     }
-    try {
-      rmSync(sessionDir, { recursive: true, force: true });
-    } catch (err) {
-      console.error('Erro ao limpar diretório:', err);
-    }
+    cleanupDirectory(sessionDir, 'diretório');
     setJobStatus(jobId, 'cancelled');
   };
 
   res.on('close', onClose);
   res.on('finish', () => {
     if (!cancelled) {
-      try {
-        rmSync(sessionDir, { recursive: true, force: true });
-      } catch (err) {
-        console.error('Erro ao limpar diretório após finish:', err);
-      }
+      cleanupDirectory(sessionDir, 'diretório após finish');
       setJobStatus(jobId, 'done');
     }
   });
@@ -514,11 +491,7 @@ app.post('/api/download-all', batchDownloadLimiter, asyncHandler(async (req, res
 
         const rs = createReadStream(filePath);
         rs.on('close', () => {
-          try {
-            rmSync(filePath, { force: true });
-          } catch (err) {
-            console.error('Erro ao remover arquivo:', err);
-          }
+          cleanupDirectory(filePath, 'arquivo');
         });
 
         archive.append(rs, { name: finalName });
