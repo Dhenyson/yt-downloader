@@ -33,7 +33,8 @@ import {
 import {
   cleanupDirectory,
   setupStreamCleanup,
-  sendValidationError
+  sendValidationError,
+  cleanupFile
 } from './utils.js';
 
 dotenv.config();
@@ -491,7 +492,7 @@ app.post('/api/download-all', batchDownloadLimiter, asyncHandler(async (req, res
 
         const rs = createReadStream(filePath);
         rs.on('close', () => {
-          cleanupDirectory(filePath, 'arquivo');
+          cleanupFile(filePath);
         });
 
         archive.append(rs, { name: finalName });

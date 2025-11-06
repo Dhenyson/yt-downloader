@@ -14,6 +14,18 @@ export function cleanupDirectory(dir, context = 'diretório') {
 }
 
 /**
+ * Remove um arquivo de forma segura, tratando erros
+ * @param {string} filePath - Caminho do arquivo a ser removido
+ */
+export function cleanupFile(filePath) {
+  try {
+    rmSync(filePath, { force: true });
+  } catch (err) {
+    console.error('Erro ao remover arquivo:', err);
+  }
+}
+
+/**
  * Configura handlers padrão para stream de leitura com cleanup
  * @param {ReadStream} readStream - Stream de leitura
  * @param {string} sessionDir - Diretório a ser limpo
