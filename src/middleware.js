@@ -3,60 +3,67 @@ import helmet from 'helmet';
 import cors from 'cors';
 
 /**
+ * Cria um rate limiter com configuração padrão
+ * @param {number} windowMs - Janela de tempo em milissegundos
+ * @param {number} max - Número máximo de requisições
+ * @param {string} errorMessage - Mensagem de erro
+ * @param {Function} skipFn - Função para pular rate limiting (opcional)
+ * @returns {RateLimitMiddleware}
+ */
+function createRateLimiter(windowMs, max, errorMessage, skipFn = null) {
+  const config = {
+    windowMs,
+    max,
+    message: { error: errorMessage },
+    standardHeaders: true,
+    legacyHeaders: false
+  };
+
+  if (skipFn) {
+    config.skip = skipFn;
+  }
+
+  return rateLimit(config);
+}
+
+/**
  * Configuração do rate limiter geral
  * Limita requisições por IP para prevenir abuso
  */
-export const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // Limite de 100 requisições por janela por IP
-  message: {
-    error: 'Muitas requisições deste IP, tente novamente em 15 minutos'
-  },
-  standardHeaders: true, // Retorna info de rate limit nos headers `RateLimit-*`
-  legacyHeaders: false, // Desabilita headers `X-RateLimit-*`
-  // Skip de rate limiting para health checks
-  skip: (req) => req.path === '/api/health'
-});
+export const generalLimiter = createRateLimiter(
+  15 * 60 * 1000, // 15 minutos
+  100,
+  'Muitas requisições deste IP, tente novamente em 15 minutos',
+  (req) => req.path === '/api/health' // Skip de rate limiting para health checks
+);
 
 /**
  * Rate limiter mais restritivo para parse de URLs
  * Previne abuso da API do YouTube
  */
-export const parseApiLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutos
-  max: 20, // Máximo 20 análises por janela
-  message: {
-    error: 'Limite de análises excedido. Aguarde 5 minutos'
-  },
-  standardHeaders: true,
-  legacyHeaders: false
-});
+export const parseApiLimiter = createRateLimiter(
+  5 * 60 * 1000, // 5 minutos
+  20,
+  'Limite de análises excedido. Aguarde 5 minutos'
+);
 
 /**
  * Rate limiter para downloads individuais
  */
-export const downloadLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutos
-  max: 50, // Máximo 50 downloads por janela
-  message: {
-    error: 'Limite de downloads excedido. Aguarde 10 minutos'
-  },
-  standardHeaders: true,
-  legacyHeaders: false
-});
+export const downloadLimiter = createRateLimiter(
+  10 * 60 * 1000, // 10 minutos
+  50,
+  'Limite de downloads excedido. Aguarde 10 minutos'
+);
 
 /**
  * Rate limiter mais restritivo para downloads em lote
  */
-export const batchDownloadLimiter = rateLimit({
-  windowMs: 30 * 60 * 1000, // 30 minutos
-  max: 5, // Máximo 5 downloads em lote por janela
-  message: {
-    error: 'Limite de downloads em lote excedido. Aguarde 30 minutos'
-  },
-  standardHeaders: true,
-  legacyHeaders: false
-});
+export const batchDownloadLimiter = createRateLimiter(
+  30 * 60 * 1000, // 30 minutos
+  5,
+  'Limite de downloads em lote excedido. Aguarde 30 minutos'
+);
 
 /**
  * Configuração do Helmet para headers de segurança HTTP

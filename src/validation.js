@@ -1,5 +1,20 @@
 import validator from 'validator';
 
+// Constantes de validação
+const YOUTUBE_VALID_HOSTS = [
+  'youtube.com',
+  'www.youtube.com',
+  'm.youtube.com',
+  'music.youtube.com',
+  'youtu.be'
+];
+
+const VIDEO_ID_REGEX = /^[a-zA-Z0-9_-]{11}$/;
+const PLAYLIST_ID_REGEX = /^[a-zA-Z0-9_-]+$/;
+const VALID_DOWNLOAD_MODES = ['video', 'audio'];
+const MAX_BATCH_ITEMS = 100;
+const MAX_FILENAME_LENGTH = 140;
+
 /**
  * Valida se uma URL é do YouTube e retorna informações sobre ela
  * @param {string} inputUrl - URL a ser validada
@@ -28,36 +43,27 @@ export function validateYouTubeUrl(inputUrl) {
   try {
     const url = new URL(urlWithProtocol);
 
-    // Lista de hostnames válidos do YouTube
-    const validHosts = [
-      'youtube.com',
-      'www.youtube.com',
-      'm.youtube.com',
-      'music.youtube.com',
-      'youtu.be'
-    ];
-
     // Verifica se o hostname é válido
-    if (!validHosts.includes(url.hostname)) {
+    if (!YOUTUBE_VALID_HOSTS.includes(url.hostname)) {
       return { valid: false, type: 'unknown', id: null, error: 'URL não é do YouTube' };
     }
 
     // Extrai ID de playlist
     const listParam = url.searchParams.get('list');
-    if (listParam && /^[a-zA-Z0-9_-]+$/.test(listParam)) {
+    if (listParam && PLAYLIST_ID_REGEX.test(listParam)) {
       return { valid: true, type: 'playlist', id: listParam, error: null };
     }
 
     // Extrai ID de vídeo do parâmetro 'v'
     const vParam = url.searchParams.get('v');
-    if (vParam && /^[a-zA-Z0-9_-]{11}$/.test(vParam)) {
+    if (vParam && VIDEO_ID_REGEX.test(vParam)) {
       return { valid: true, type: 'video', id: vParam, error: null };
     }
 
     // Extrai ID de vídeo do path (youtu.be)
     if (url.hostname === 'youtu.be') {
       const pathId = url.pathname.slice(1).split('/')[0];
-      if (pathId && /^[a-zA-Z0-9_-]{11}$/.test(pathId)) {
+      if (pathId && VIDEO_ID_REGEX.test(pathId)) {
         return { valid: true, type: 'video', id: pathId, error: null };
       }
     }
@@ -100,8 +106,8 @@ export function sanitizeFilename(name) {
   sanitized = sanitized.replace(/\s+/g, ' ').trim();
 
   // Limita o tamanho do nome (muitos sistemas têm limite de 255 bytes)
-  if (sanitized.length > 140) {
-    sanitized = sanitized.slice(0, 140);
+  if (sanitized.length > MAX_FILENAME_LENGTH) {
+    sanitized = sanitized.slice(0, MAX_FILENAME_LENGTH);
   }
 
   // Garante que não seja vazio ou apenas pontos
@@ -121,14 +127,12 @@ export function sanitizeFilename(name) {
  * @returns {{valid: boolean, error: string|null}}
  */
 export function validateDownloadMode(mode) {
-  const validModes = ['video', 'audio'];
-
   if (!mode || typeof mode !== 'string') {
     return { valid: false, error: 'Modo de download ausente' };
   }
 
-  if (!validModes.includes(mode)) {
-    return { valid: false, error: `Modo inválido. Use: ${validModes.join(', ')}` };
+  if (!VALID_DOWNLOAD_MODES.includes(mode)) {
+    return { valid: false, error: `Modo inválido. Use: ${VALID_DOWNLOAD_MODES.join(', ')}` };
   }
 
   return { valid: true, error: null };
@@ -148,8 +152,8 @@ export function validateBatchItems(items) {
     return { valid: false, error: 'Array de items não pode estar vazio' };
   }
 
-  if (items.length > 100) {
-    return { valid: false, error: 'Máximo de 100 itens por lote' };
+  if (items.length > MAX_BATCH_ITEMS) {
+    return { valid: false, error: `Máximo de ${MAX_BATCH_ITEMS} itens por lote` };
   }
 
   // Valida cada item
@@ -163,7 +167,7 @@ export function validateBatchItems(items) {
     }
 
     // Valida formato do ID do vídeo
-    if (!/^[a-zA-Z0-9_-]{11}$/.test(item.id)) {
+    if (!VIDEO_ID_REGEX.test(item.id)) {
       return { valid: false, error: `ID de vídeo inválido: ${item.id}` };
     }
   }
